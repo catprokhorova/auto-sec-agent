@@ -45,7 +45,7 @@ An autonomous AI security agent designed for CI/CD pipelines (GitLab CI, GitHub 
 
 ---
 
-## Key Features & Production Battle Scar Defenses
+## Key Features & Production Defenses
 
 1. **Anti-Loop Circuit Breaker**:
    - Limits iterations strictly (`loop_counter <= 3`).
