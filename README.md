@@ -129,6 +129,21 @@ black --check --line-length 88 src tests
 pytest tests
 ```
 
+### 5. Running MCP Tool Servers Standalone
+
+Each MCP server can be launched independently using the standard Anthropic MCP protocol over `stdio` or `sse`:
+
+```bash
+# Launch Git MCP server via stdio
+python -m src.mcp_servers.runner --server git --transport stdio
+
+# Launch Docker Sandbox runner server
+python -m src.mcp_servers.runner --server sandbox --transport stdio
+
+# Launch Knowledge Graph & Vector Search server
+python -m src.mcp_servers.runner --server knowledge --transport stdio
+```
+
 ---
 
 ## Project Structure
@@ -144,12 +159,16 @@ pytest tests
 │   ├── api/                    # Webhook endpoints (GitLab/GitHub)
 │   ├── clients/                # MCP Gateway, Bedrock LLM client, Langfuse tracer
 │   ├── core/                   # LangGraph state machine, nodes, edges, log pruner
-│   └── mcp_servers/            # Git, Sandbox Runner, Knowledge Graph MCP servers
+│   └── mcp_servers/            # Standalone MCP servers
+│       ├── git_server.py       # Git inspection, diff patching, PR creation
+│       ├── sandbox_server.py   # Isolated Docker test runner & cleanup
+│       ├── knowledge_server.py # Neo4j topology & OpenSearch semantic search
+│       └── runner.py           # CLI runner for stdio/SSE transport
 ├── tests/
 │   ├── conftest.py             # Pytest fixtures and test doubles
-│   ├── e2e/                    # Battle-scar end-to-end scenarios
+│   ├── e2e/                    # Production resilience end-to-end scenarios
 │   ├── test_config.py          # Configuration unit tests
-│   └── test_mcp_servers/       # MCP tool tests
+│   └── test_mcp_servers/       # Tests for each MCP server
 ├── .pre-commit-config.yaml     # Pre-commit git hooks
 ├── pyproject.toml              # Build & tool configuration
 ├── requirements.txt            # Dependency lock specification

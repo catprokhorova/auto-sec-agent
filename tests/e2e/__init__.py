@@ -1,1 +1,1 @@
-"""End-to-end integration and battle-scars tests."""
+"""End-to-end integration and resilience tests."""
