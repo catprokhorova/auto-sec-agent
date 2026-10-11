@@ -2,13 +2,13 @@
 
 import argparse
 import sys
-from typing import Callable, Dict
+from collections.abc import Callable
 
 from src.mcp_servers.git_server import create_git_mcp_server
 from src.mcp_servers.knowledge_server import create_knowledge_mcp_server
 from src.mcp_servers.sandbox_server import create_sandbox_mcp_server
 
-SERVER_FACTORIES: Dict[str, Callable[[], object]] = {
+SERVER_FACTORIES: dict[str, Callable[[], object]] = {
     "git": create_git_mcp_server,
     "sandbox": create_sandbox_mcp_server,
     "knowledge": create_knowledge_mcp_server,

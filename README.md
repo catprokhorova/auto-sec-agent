@@ -157,8 +157,12 @@ python -m src.mcp_servers.runner --server knowledge --transport stdio
 │   └── docker-compose.yml      # Local Neo4j & OpenSearch containers
 ├── src/
 │   ├── api/                    # Webhook endpoints (GitLab/GitHub)
-│   ├── clients/                # MCP Gateway, Bedrock LLM client, Langfuse tracer
-│   ├── core/                   # LangGraph state machine, nodes, edges, log pruner
+│   ├── clients/                # Client gateways & model integrations
+│   │   ├── bedrock.py          # AWS Bedrock (Claude 3.5 Sonnet/Haiku) with mock engine
+│   │   └── mcp_gateway.py      # Resilient MCP gateway with tool validation interceptor
+│   ├── core/                   # Orchestrator & resilience logic
+│   │   ├── config.py           # Pydantic v2 Settings management
+│   │   └── pruner.py           # Token-efficient stack trace pruner & sliding window
 │   └── mcp_servers/            # Standalone MCP servers
 │       ├── git_server.py       # Git inspection, diff patching, PR creation
 │       ├── sandbox_server.py   # Isolated Docker test runner & cleanup
@@ -167,8 +171,11 @@ python -m src.mcp_servers.runner --server knowledge --transport stdio
 ├── tests/
 │   ├── conftest.py             # Pytest fixtures and test doubles
 │   ├── e2e/                    # Production resilience end-to-end scenarios
+│   ├── test_bedrock.py         # Bedrock client & mock engine tests
 │   ├── test_config.py          # Configuration unit tests
-│   └── test_mcp_servers/       # Tests for each MCP server
+│   ├── test_mcp_gateway.py     # MCP gateway validation interceptor tests
+│   ├── test_mcp_servers/       # Tests for each MCP server
+│   └── test_pruner.py          # Stack trace extraction & sliding window tests
 ├── .pre-commit-config.yaml     # Pre-commit git hooks
 ├── pyproject.toml              # Build & tool configuration
 ├── requirements.txt            # Dependency lock specification

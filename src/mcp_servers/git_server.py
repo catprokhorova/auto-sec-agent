@@ -3,7 +3,8 @@
 import asyncio
 import os
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import Any
+
 from pydantic import BaseModel, Field
 
 from src.core.config import get_settings
@@ -18,10 +19,10 @@ class ReadFileInput(BaseModel):
     """Input payload for reading file contents."""
 
     file_path: str = Field(description="Relative path to the file in the repository")
-    start_line: Optional[int] = Field(
+    start_line: int | None = Field(
         default=None, description="Optional 1-based start line index"
     )
-    end_line: Optional[int] = Field(
+    end_line: int | None = Field(
         default=None, description="Optional 1-based end line index"
     )
 
@@ -70,10 +71,8 @@ class CreatePullRequestInput(BaseModel):
 class GitService:
     """Core asynchronous Git operations implementation."""
 
-    def __init__(self, workspace_root: Optional[str] = None):
-        self.workspace_root = Path(
-            workspace_root or os.getcwd()
-        ).resolve()
+    def __init__(self, workspace_root: str | None = None):
+        self.workspace_root = Path(workspace_root or os.getcwd()).resolve()
         self.settings = get_settings()
 
     def _resolve_safe_path(self, relative_path: str) -> Path:
@@ -87,7 +86,7 @@ class GitService:
         return resolved
 
     async def _run_git_command(
-        self, *args: str, cwd: Optional[Path] = None
+        self, *args: str, cwd: Path | None = None
     ) -> tuple[int, str, str]:
         """Execute a git subcommand asynchronously without shell expansion."""
         process = await asyncio.create_subprocess_exec(
@@ -107,8 +106,8 @@ class GitService:
     async def read_file(
         self,
         file_path: str,
-        start_line: Optional[int] = None,
-        end_line: Optional[int] = None,
+        start_line: int | None = None,
+        end_line: int | None = None,
     ) -> str:
         """Read full file or slice of lines safely."""
         target_path = self._resolve_safe_path(file_path)
@@ -116,7 +115,7 @@ class GitService:
             raise FileNotFoundError(f"File not found: {file_path}")
 
         def _read() -> list[str]:
-            with open(target_path, "r", encoding="utf-8", errors="replace") as f:
+            with open(target_path, encoding="utf-8", errors="replace") as f:
                 return f.readlines()
 
         lines = await asyncio.to_thread(_read)
@@ -130,12 +129,11 @@ class GitService:
 
         selected = lines[s_line - 1 : e_line]
         numbered_lines = [
-            f"{idx:6d} | {line}"
-            for idx, line in enumerate(selected, start=s_line)
+            f"{idx:6d} | {line}" for idx, line in enumerate(selected, start=s_line)
         ]
         return "".join(numbered_lines)
 
-    async def list_directory(self, dir_path: str = ".") -> List[str]:
+    async def list_directory(self, dir_path: str = ".") -> list[str]:
         """List files in directory while ignoring hidden/git artifacts."""
         target_dir = self._resolve_safe_path(dir_path)
         if not target_dir.is_dir():
@@ -154,7 +152,7 @@ class GitService:
         return await asyncio.to_thread(_scan)
 
     async def create_branch(
-        self, branch_name: str, base_branch: Optional[str] = None
+        self, branch_name: str, base_branch: str | None = None
     ) -> str:
         """Create and checkout a new git branch from base branch."""
         base = base_branch or self.settings.git_base_branch
@@ -199,8 +197,8 @@ class GitService:
         title: str,
         description: str,
         source_branch: str,
-        target_branch: Optional[str] = None,
-    ) -> Dict[str, Any]:
+        target_branch: str | None = None,
+    ) -> dict[str, Any]:
         """Stage, commit, and create pull request / merge request payload."""
         target = target_branch or self.settings.git_base_branch
 
@@ -227,7 +225,7 @@ class GitService:
         return pr_info
 
 
-def create_git_mcp_server(workspace_root: Optional[str] = None) -> Any:
+def create_git_mcp_server(workspace_root: str | None = None) -> Any:
     """Instantiate and register Git MCP server tools."""
     service = GitService(workspace_root=workspace_root)
 
@@ -245,8 +243,8 @@ def create_git_mcp_server(workspace_root: Optional[str] = None) -> Any:
     )
     async def read_file(
         file_path: str,
-        start_line: Optional[int] = None,
-        end_line: Optional[int] = None,
+        start_line: int | None = None,
+        end_line: int | None = None,
     ) -> str:
         return await service.read_file(
             file_path=file_path, start_line=start_line, end_line=end_line
@@ -256,7 +254,7 @@ def create_git_mcp_server(workspace_root: Optional[str] = None) -> Any:
         name="list_directory",
         description="List files and directories at the given path relative to repository root.",
     )
-    async def list_directory(dir_path: str = ".") -> List[str]:
+    async def list_directory(dir_path: str = ".") -> list[str]:
         return await service.list_directory(dir_path=dir_path)
 
     @server.tool(
@@ -286,7 +284,7 @@ def create_git_mcp_server(workspace_root: Optional[str] = None) -> Any:
         description: str,
         source_branch: str,
         target_branch: str = "main",
-    ) -> Dict[str, Any]:
+    ) -> dict[str, Any]:
         return await service.create_pull_request(
             title=title,
             description=description,

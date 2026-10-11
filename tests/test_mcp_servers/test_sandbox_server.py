@@ -1,7 +1,8 @@
 """Unit tests for MCP Sandbox Server and DockerSandboxService."""
 
-import pytest
 from unittest.mock import MagicMock
+
+import pytest
 
 from src.mcp_servers.sandbox_server import (
     DockerSandboxService,
@@ -16,9 +17,11 @@ def mock_docker_client():
     container = MagicMock()
     container.id = "c1234567890abcdef"
     container.wait.return_value = {"StatusCode": 0}
-    container.logs.side_effect = lambda stdout=False, stderr=False: (
-        b"5 passed in 0.2s" if stdout else b""
-    )
+
+    def _mock_logs(stdout=False, stderr=False):
+        return b"5 passed in 0.2s" if stdout else b"" if stderr else b""
+
+    container.logs.side_effect = _mock_logs
     client.containers.create.return_value = container
     client.containers.get.return_value = container
     return client
@@ -47,9 +50,11 @@ async def test_run_test_in_sandbox_failed(mock_docker_client):
     """Test failing test execution in sandbox."""
     container = mock_docker_client.containers.create.return_value
     container.wait.return_value = {"StatusCode": 1}
-    container.logs.side_effect = lambda stdout=False, stderr=False: (
-        b"" if stdout else b"FAILED tests/test_auth.py"
-    )
+
+    def _mock_err_logs(stdout=False, stderr=False):
+        return b"FAILED tests/test_auth.py" if stderr else b"" if stdout else b""
+
+    container.logs.side_effect = _mock_err_logs
 
     service = DockerSandboxService(docker_client=mock_docker_client)
     res = await service.run_test_in_sandbox(service_name="auth_service")
@@ -66,9 +71,7 @@ async def test_run_test_in_sandbox_timeout(mock_docker_client):
     container.wait.side_effect = Exception("Read timed out")
 
     service = DockerSandboxService(docker_client=mock_docker_client)
-    res = await service.run_test_in_sandbox(
-        service_name="auth_service", timeout_sec=1
-    )
+    res = await service.run_test_in_sandbox(service_name="auth_service", timeout_sec=1)
 
     assert res["status"] == "TIMEOUT"
     assert res["exit_code"] == 124
@@ -80,7 +83,9 @@ async def test_run_test_in_sandbox_docker_error():
     """Verify service handles missing docker connection without crashing."""
     service = DockerSandboxService()
     # Force _get_client to raise exception
-    service._get_client = MagicMock(side_effect=RuntimeError("Cannot connect to docker daemon"))
+    service._get_client = MagicMock(
+        side_effect=RuntimeError("Cannot connect to docker daemon")
+    )
 
     res = await service.run_test_in_sandbox(service_name="auth_service")
     assert res["status"] == "FAILED"

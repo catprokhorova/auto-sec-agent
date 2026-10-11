@@ -1,7 +1,8 @@
 """Unit tests for MCP Knowledge Graph & Vector Search Server."""
 
-import pytest
 from unittest.mock import AsyncMock, MagicMock
+
+import pytest
 
 from src.mcp_servers.knowledge_server import (
     KnowledgeGraphService,

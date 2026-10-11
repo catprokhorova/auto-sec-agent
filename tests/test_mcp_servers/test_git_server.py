@@ -1,8 +1,9 @@
 """Unit tests for MCP Git Server and GitService."""
 
-import pytest
 from pathlib import Path
 from unittest.mock import AsyncMock
+
+import pytest
 
 from src.mcp_servers.git_server import GitService, create_git_mcp_server
 
@@ -26,7 +27,9 @@ def temp_workspace(tmp_path: Path) -> Path:
 async def test_read_file_success(temp_workspace: Path):
     """Test reading lines from a valid file with slice limits."""
     service = GitService(workspace_root=str(temp_workspace))
-    content = await service.read_file("services/auth/service.py", start_line=2, end_line=3)
+    content = await service.read_file(
+        "services/auth/service.py", start_line=2, end_line=3
+    )
 
     assert "vulnerable query" in content
     assert "2 | " in content
@@ -88,7 +91,7 @@ async def test_apply_git_diff_success(temp_workspace: Path, monkeypatch):
     mock_run = AsyncMock()
     mock_run.side_effect = [
         (0, "Switched to branch", ""),  # checkout
-        (0, "Applied patch", ""),       # apply
+        (0, "Applied patch", ""),  # apply
     ]
     monkeypatch.setattr(service, "_run_git_command", mock_run)
 
@@ -103,9 +106,9 @@ async def test_create_pull_request(temp_workspace: Path, monkeypatch):
     service = GitService(workspace_root=str(temp_workspace))
     mock_run = AsyncMock()
     mock_run.side_effect = [
-        (0, "staged", ""),        # add -A
-        (0, "committed", ""),     # commit
-        (0, "abc1234\n", ""),     # rev-parse
+        (0, "staged", ""),  # add -A
+        (0, "committed", ""),  # commit
+        (0, "abc1234\n", ""),  # rev-parse
     ]
     monkeypatch.setattr(service, "_run_git_command", mock_run)
 

@@ -57,15 +57,11 @@ class Settings(BaseSettings):
     langfuse_enabled: bool = Field(default=False, alias="LANGFUSE_ENABLED")
 
     # Docker Sandbox
-    docker_host: str = Field(
-        default="unix:///var/run/docker.sock", alias="DOCKER_HOST"
-    )
+    docker_host: str = Field(default="unix:///var/run/docker.sock", alias="DOCKER_HOST")
     sandbox_default_image: str = Field(
         default="python:3.11-slim", alias="SANDBOX_DEFAULT_IMAGE"
     )
-    sandbox_exec_timeout_sec: int = Field(
-        default=60, alias="SANDBOX_EXEC_TIMEOUT_SEC"
-    )
+    sandbox_exec_timeout_sec: int = Field(default=60, alias="SANDBOX_EXEC_TIMEOUT_SEC")
 
     # Git and CI/CD
     git_base_branch: str = Field(default="main", alias="GIT_BASE_BRANCH")
@@ -75,9 +71,7 @@ class Settings(BaseSettings):
 
     # Circuit Breaker & Safety
     max_loop_count: int = Field(default=3, alias="MAX_LOOP_COUNT")
-    token_pruning_max_lines: int = Field(
-        default=200, alias="TOKEN_PRUNING_MAX_LINES"
-    )
+    token_pruning_max_lines: int = Field(default=200, alias="TOKEN_PRUNING_MAX_LINES")
 
 
 def get_settings() -> Settings:

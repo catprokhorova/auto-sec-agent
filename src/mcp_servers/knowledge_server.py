@@ -1,14 +1,14 @@
 """MCP Knowledge Graph & Vector Search Server using Neo4j and OpenSearch."""
 
-import asyncio
 import logging
-from typing import Any, Dict, List, Optional
+from typing import Any
+
 from pydantic import BaseModel, Field
 
 from src.core.config import get_settings
 
 try:
-    from neo4j import AsyncGraphDatabase, AsyncDriver
+    from neo4j import AsyncDriver, AsyncGraphDatabase
 except ImportError:  # pragma: no cover
     AsyncGraphDatabase = None
     AsyncDriver = Any
@@ -55,13 +55,13 @@ class ImpactRadiusResult(BaseModel):
     """Result structure detailing impacted components and test suites."""
 
     target_file: str = Field(description="Target file analyzed")
-    dependent_files: List[str] = Field(
+    dependent_files: list[str] = Field(
         default_factory=list, description="Files importing or depending on target"
     )
-    affected_services: List[str] = Field(
+    affected_services: list[str] = Field(
         default_factory=list, description="Microservices affected by changes"
     )
-    suggested_test_suites: List[str] = Field(
+    suggested_test_suites: list[str] = Field(
         default_factory=list, description="Recommended tests to execute"
     )
 
@@ -71,16 +71,16 @@ class KnowledgeGraphService:
 
     def __init__(
         self,
-        neo4j_driver: Optional[Any] = None,
-        opensearch_client: Optional[Any] = None,
+        neo4j_driver: Any | None = None,
+        opensearch_client: Any | None = None,
     ):
         self.settings = get_settings()
         self._custom_driver = neo4j_driver
         self._custom_os = opensearch_client
-        self._neo4j_driver: Optional[Any] = None
-        self._opensearch_client: Optional[Any] = None
+        self._neo4j_driver: Any | None = None
+        self._opensearch_client: Any | None = None
 
-    async def get_neo4j_driver(self) -> Optional[Any]:
+    async def get_neo4j_driver(self) -> Any | None:
         """Obtain or initialize Neo4j AsyncDriver."""
         if self._custom_driver is not None:
             return self._custom_driver
@@ -95,7 +95,7 @@ class KnowledgeGraphService:
                 logger.warning("Failed to initialize Neo4j driver: %s", exc)
         return self._neo4j_driver
 
-    async def get_opensearch_client(self) -> Optional[Any]:
+    async def get_opensearch_client(self) -> Any | None:
         """Obtain or initialize OpenSearch async client."""
         if self._custom_os is not None:
             return self._custom_os
@@ -129,7 +129,7 @@ class KnowledgeGraphService:
             await self._opensearch_client.close()
             self._opensearch_client = None
 
-    async def get_service_dependencies(self, service_name: str) -> List[str]:
+    async def get_service_dependencies(self, service_name: str) -> list[str]:
         """Query Neo4j for services connected to the target microservice."""
         driver = await self.get_neo4j_driver()
         if driver is None:
@@ -144,12 +144,16 @@ class KnowledgeGraphService:
             async with driver.session() as session:
                 result = await session.run(query, service_name=service_name)
                 records = await result.data()
-                return [record["dependency"] for record in records if "dependency" in record]
+                return [
+                    record["dependency"] for record in records if "dependency" in record
+                ]
         except Exception as exc:
-            logger.warning("Neo4j query failed (%s), returning fallback dependencies.", exc)
+            logger.warning(
+                "Neo4j query failed (%s), returning fallback dependencies.", exc
+            )
             return self._mock_service_dependencies(service_name)
 
-    async def get_impact_radius(self, file_path: str) -> Dict[str, Any]:
+    async def get_impact_radius(self, file_path: str) -> dict[str, Any]:
         """Query Neo4j knowledge graph to find impacted files, services, and tests."""
         driver = await self.get_neo4j_driver()
         if driver is None:
@@ -159,7 +163,7 @@ class KnowledgeGraphService:
         MATCH (f:File {path: $file_path})<-[:IMPORTS|REFERENCES*1..3]-(dep:File)
         OPTIONAL MATCH (dep)-[:BELONGS_TO]->(s:Service)
         OPTIONAL MATCH (dep)-[:TESTS]->(f)
-        RETURN 
+        RETURN
             collect(DISTINCT dep.path) AS dependent_files,
             collect(DISTINCT s.name) AS affected_services
         """
@@ -169,7 +173,9 @@ class KnowledgeGraphService:
                 single = await result.single()
                 if single:
                     dependent_files = single.get("dependent_files", [])
-                    affected_services = [s for s in single.get("affected_services", []) if s]
+                    affected_services = [
+                        s for s in single.get("affected_services", []) if s
+                    ]
                     suggested_tests = [
                         f for f in dependent_files if "test_" in f or "_test" in f
                     ]
@@ -181,13 +187,15 @@ class KnowledgeGraphService:
                     )
                     return impact.model_dump()
         except Exception as exc:
-            logger.warning("Neo4j impact query failed (%s), using heuristic analysis.", exc)
+            logger.warning(
+                "Neo4j impact query failed (%s), using heuristic analysis.", exc
+            )
 
         return self._mock_impact_radius(file_path).model_dump()
 
     async def semantic_code_search(
         self, query: str, top_k: int = 5
-    ) -> List[Dict[str, Any]]:
+    ) -> list[dict[str, Any]]:
         """Query OpenSearch vector index for code snippets and security docs."""
         os_client = await self.get_opensearch_client()
         if os_client is None:
@@ -208,7 +216,7 @@ class KnowledgeGraphService:
                 body=search_body, index="security_knowledge_base"
             )
             hits = response.get("hits", {}).get("hits", [])
-            results: List[Dict[str, Any]] = []
+            results: list[dict[str, Any]] = []
             for hit in hits:
                 source = hit.get("_source", {})
                 results.append(
@@ -225,10 +233,14 @@ class KnowledgeGraphService:
             logger.warning("OpenSearch search failed (%s), using local fallback.", exc)
             return self._mock_semantic_search(query, top_k)
 
-    def _mock_service_dependencies(self, service_name: str) -> List[str]:
+    def _mock_service_dependencies(self, service_name: str) -> list[str]:
         """Built-in topology mapping used for offline runs and tests."""
         topology = {
-            "auth_service": ["user_service", "notification_service", "database_cluster"],
+            "auth_service": [
+                "user_service",
+                "notification_service",
+                "database_cluster",
+            ],
             "user_service": ["database_cluster", "payment_service"],
             "billing_service": ["payment_service", "notification_service"],
         }
@@ -257,7 +269,7 @@ class KnowledgeGraphService:
             suggested_test_suites=suggested_tests,
         )
 
-    def _mock_semantic_search(self, query: str, top_k: int) -> List[Dict[str, Any]]:
+    def _mock_semantic_search(self, query: str, top_k: int) -> list[dict[str, Any]]:
         """Fallback semantic matches for common vulnerability queries."""
         sample_kb = [
             {
@@ -282,12 +294,21 @@ class KnowledgeGraphService:
                 "cve_id": "CWE-502",
             },
         ]
-        return sample_kb[:top_k]
+        q_lower = query.lower()
+        matched = [
+            doc
+            for doc in sample_kb
+            if q_lower in doc["title"].lower() or q_lower in doc["snippet"].lower()
+        ]
+        for doc in sample_kb:
+            if doc not in matched:
+                matched.append(doc)
+        return matched[:top_k]
 
 
 def create_knowledge_mcp_server(
-    neo4j_driver: Optional[Any] = None,
-    opensearch_client: Optional[Any] = None,
+    neo4j_driver: Any | None = None,
+    opensearch_client: Any | None = None,
 ) -> Any:
     """Instantiate and register Knowledge Graph MCP server tools."""
     service = KnowledgeGraphService(
@@ -306,21 +327,21 @@ def create_knowledge_mcp_server(
         name="get_service_dependencies",
         description="Fetch upstream and downstream microservices connected to the specified service in Neo4j.",
     )
-    async def get_service_dependencies(service_name: str) -> List[str]:
+    async def get_service_dependencies(service_name: str) -> list[str]:
         return await service.get_service_dependencies(service_name=service_name)
 
     @server.tool(
         name="get_impact_radius",
         description="Traverse knowledge graph to determine impacted files, services, and tests for a given file path.",
     )
-    async def get_impact_radius(file_path: str) -> Dict[str, Any]:
+    async def get_impact_radius(file_path: str) -> dict[str, Any]:
         return await service.get_impact_radius(file_path=file_path)
 
     @server.tool(
         name="semantic_code_search",
         description="Search OpenSearch vector index for relevant security guidelines, CVE fixes, and code examples.",
     )
-    async def semantic_code_search(query: str, top_k: int = 5) -> List[Dict[str, Any]]:
+    async def semantic_code_search(query: str, top_k: int = 5) -> list[dict[str, Any]]:
         return await service.semantic_code_search(query=query, top_k=top_k)
 
     return server

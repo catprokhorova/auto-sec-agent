@@ -1,8 +1,9 @@
 """Pytest configuration and shared async fixtures."""
 
 import os
+from typing import Any
+
 import pytest
-from typing import AsyncGenerator, Dict, Any
 
 from src.core.config import Settings, get_settings
 
@@ -17,7 +18,7 @@ def test_settings() -> Settings:
 
 
 @pytest.fixture
-def sample_sast_alert() -> Dict[str, Any]:
+def sample_sast_alert() -> dict[str, Any]:
     """Fixture returning sample static analysis vulnerability alert."""
     return {
         "tool": "semgrep",
@@ -50,8 +51,8 @@ ______________________________ test_user_login _______________________________
     def test_user_login():
 >       token = authenticate_user("admin", "password' OR '1'='1")
 
-services/auth/service.py:34: 
-_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+services/auth/service.py:34:
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
 
 username = 'admin', password = "password' OR '1'='1"
 

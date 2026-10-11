@@ -2,7 +2,8 @@
 
 import asyncio
 import logging
-from typing import Any, Dict, Optional
+from typing import Any
+
 from pydantic import BaseModel, Field
 
 from src.core.config import get_settings
@@ -33,12 +34,13 @@ class RunTestInSandboxInput(BaseModel):
         default="", description="Unified git diff to apply before running tests"
     )
     test_command: str = Field(
-        default="pytest", description="Command to execute test suite (e.g. pytest tests/)"
+        default="pytest",
+        description="Command to execute test suite (e.g. pytest tests/)",
     )
-    image: Optional[str] = Field(
+    image: str | None = Field(
         default=None, description="Optional custom docker image name"
     )
-    timeout_sec: Optional[int] = Field(
+    timeout_sec: int | None = Field(
         default=None, description="Maximum execution timeout in seconds"
     )
 
@@ -55,10 +57,12 @@ class SandboxTestResult(BaseModel):
     exit_code: int = Field(description="Command return status code (0 for success)")
     stdout: str = Field(description="Standard output produced by test execution")
     stderr: str = Field(description="Standard error output produced by test execution")
-    container_id: Optional[str] = Field(
+    container_id: str | None = Field(
         default=None, description="ID of container that ran tests"
     )
-    duration_sec: float = Field(default=0.0, description="Total execution time in seconds")
+    duration_sec: float = Field(
+        default=0.0, description="Total execution time in seconds"
+    )
     status: str = Field(
         description="Final execution status: 'PASSED', 'FAILED', or 'TIMEOUT'"
     )
@@ -67,7 +71,7 @@ class SandboxTestResult(BaseModel):
 class DockerSandboxService:
     """Service managing Docker container lifecycle and isolated test execution."""
 
-    def __init__(self, docker_client: Optional[Any] = None):
+    def __init__(self, docker_client: Any | None = None):
         self.settings = get_settings()
         self._custom_client = docker_client
 
@@ -85,10 +89,10 @@ class DockerSandboxService:
             try:
                 # Fallback to default local environment
                 return docker.from_env()
-            except DockerException:
+            except DockerException as fallback_exc:
                 raise RuntimeError(
                     f"Unable to connect to Docker daemon at {self.settings.docker_host}: {exc}"
-                )
+                ) from fallback_exc
 
     def _execute_in_container_sync(
         self,
@@ -97,7 +101,7 @@ class DockerSandboxService:
         test_command: str,
         image_name: str,
         timeout: int,
-    ) -> Dict[str, Any]:
+    ) -> dict[str, Any]:
         """Synchronous container execution logic intended for asyncio.to_thread."""
         client = self._get_client()
         container = None
@@ -173,9 +177,9 @@ class DockerSandboxService:
         service_name: str,
         patch_diff: str = "",
         test_command: str = "pytest",
-        image: Optional[str] = None,
-        timeout_sec: Optional[int] = None,
-    ) -> Dict[str, Any]:
+        image: str | None = None,
+        timeout_sec: int | None = None,
+    ) -> dict[str, Any]:
         """Execute test suite asynchronously inside isolated Docker sandbox container."""
         image_name = image or self.settings.sandbox_default_image
         timeout = timeout_sec or self.settings.sandbox_exec_timeout_sec
@@ -225,7 +229,7 @@ class DockerSandboxService:
         return await asyncio.to_thread(_remove)
 
 
-def create_sandbox_mcp_server(docker_client: Optional[Any] = None) -> Any:
+def create_sandbox_mcp_server(docker_client: Any | None = None) -> Any:
     """Instantiate and register Docker Sandbox MCP server tools."""
     service = DockerSandboxService(docker_client=docker_client)
 
@@ -245,9 +249,9 @@ def create_sandbox_mcp_server(docker_client: Optional[Any] = None) -> Any:
         service_name: str,
         patch_diff: str = "",
         test_command: str = "pytest",
-        image: Optional[str] = None,
-        timeout_sec: Optional[int] = None,
-    ) -> Dict[str, Any]:
+        image: str | None = None,
+        timeout_sec: int | None = None,
+    ) -> dict[str, Any]:
         return await service.run_test_in_sandbox(
             service_name=service_name,
             patch_diff=patch_diff,

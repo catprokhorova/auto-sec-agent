@@ -1,8 +1,6 @@
 """Unit tests for standalone MCP server runner CLI."""
 
-import pytest
-
-from src.mcp_servers.runner import parse_args, SERVER_FACTORIES
+from src.mcp_servers.runner import SERVER_FACTORIES, parse_args
 
 
 def test_parse_args_git():

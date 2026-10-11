@@ -1,6 +1,5 @@
 """Unit tests for configuration management."""
 
-import os
 from src.core.config import Settings
 
 
@@ -12,7 +11,9 @@ def test_default_settings():
     assert settings.bedrock_model_haiku == "anthropic.claude-3-5-haiku-20241022-v1:0"
     assert settings.max_loop_count == 3
     assert settings.opensearch_port == 9200
-    assert settings.neo4j_port_check() if hasattr(settings, "neo4j_port_check") else True
+    assert (
+        settings.neo4j_port_check() if hasattr(settings, "neo4j_port_check") else True
+    )
 
 
 def test_settings_env_override(monkeypatch):

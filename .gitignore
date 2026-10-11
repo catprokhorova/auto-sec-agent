@@ -8,3 +8,8 @@
 .cursor/
 .vscode/
 .venv/
+__pycache__/
+*.py[cod]
+*$py.class
+.pytest_cache/
+.ruff_cache/
