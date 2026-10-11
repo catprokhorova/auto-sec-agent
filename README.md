@@ -222,9 +222,6 @@ pytest tests -v
 
 ```
 .
-├── .cursor/
-│   ├── plan.md                     # Implementation plan and status tracking
-│   └── rules/                      # Project conventions (python.mdc)
 ├── .github/
 │   └── workflows/
 │       └── security-agent.yml      # Sample GitHub Actions remediation workflow
