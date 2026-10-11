@@ -1,11 +1,18 @@
 """Pytest configuration and shared async fixtures."""
 
 import os
+import sys
+from pathlib import Path
 from typing import Any
 
 import pytest
 
-from src.core.config import Settings, get_settings
+# Ensure local .deps is in sys.path if present
+deps_dir = Path(__file__).resolve().parent.parent / ".deps"
+if deps_dir.is_dir() and str(deps_dir) not in sys.path:
+    sys.path.insert(0, str(deps_dir))
+
+from src.core.config import Settings, get_settings  # noqa: E402
 
 
 @pytest.fixture(scope="session")

@@ -162,7 +162,11 @@ python -m src.mcp_servers.runner --server knowledge --transport stdio
 │   │   └── mcp_gateway.py      # Resilient MCP gateway with tool validation interceptor
 │   ├── core/                   # Orchestrator & resilience logic
 │   │   ├── config.py           # Pydantic v2 Settings management
-│   │   └── pruner.py           # Token-efficient stack trace pruner & sliding window
+│   │   ├── edges.py            # Routers & anti-loop circuit breaker logic
+│   │   ├── nodes.py            # LangGraph node execution logic
+│   │   ├── orchestrator.py     # StateGraph assembly & asynchronous run loop
+│   │   ├── pruner.py           # Token-efficient stack trace pruner & sliding window
+│   │   └── state.py            # Pydantic v2 AgentState schema definition
 │   └── mcp_servers/            # Standalone MCP servers
 │       ├── git_server.py       # Git inspection, diff patching, PR creation
 │       ├── sandbox_server.py   # Isolated Docker test runner & cleanup
@@ -175,6 +179,7 @@ python -m src.mcp_servers.runner --server knowledge --transport stdio
 │   ├── test_config.py          # Configuration unit tests
 │   ├── test_mcp_gateway.py     # MCP gateway validation interceptor tests
 │   ├── test_mcp_servers/       # Tests for each MCP server
+│   ├── test_orchestrator.py    # State machine and circuit breaker tests
 │   └── test_pruner.py          # Stack trace extraction & sliding window tests
 ├── .pre-commit-config.yaml     # Pre-commit git hooks
 ├── pyproject.toml              # Build & tool configuration
