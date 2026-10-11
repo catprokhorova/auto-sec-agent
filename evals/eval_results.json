@@ -1,0 +1,110 @@
+{
+  "benchmark_runs": 4,
+  "optimal_trajectory_rate_pct": 25.0,
+  "average_steps_to_resolution": 7.0,
+  "average_trajectory_consistency_score": 0.42,
+  "total_bedrock_cost_usd": 0.05516,
+  "circuit_breaker_activations": 2,
+  "scenarios": [
+    {
+      "trace_id": "trace_6198f783c5d6",
+      "trajectory_steps": [
+        "triage_error",
+        "fetch_context",
+        "generate_fix",
+        "validate_fix",
+        "create_pr"
+      ],
+      "step_count": 5,
+      "is_optimal_trajectory": true,
+      "trajectory_consistency_score": 1.0,
+      "total_tool_calls": 0,
+      "successful_tool_calls": 0,
+      "hallucinated_tool_calls": 0,
+      "tool_calling_accuracy": 1.0,
+      "circuit_breaker_triggered": false,
+      "circuit_breaker_reason": null,
+      "total_input_tokens": 1450,
+      "total_output_tokens": 310,
+      "total_cost_usd": 0.00779,
+      "scenario_name": "Optimal Clean Fix (1-pass)"
+    },
+    {
+      "trace_id": "trace_0baf326d11dc",
+      "trajectory_steps": [
+        "triage_error",
+        "fetch_context",
+        "generate_fix",
+        "validate_fix",
+        "generate_fix",
+        "validate_fix",
+        "create_pr"
+      ],
+      "step_count": 7,
+      "is_optimal_trajectory": false,
+      "trajectory_consistency_score": 0.7,
+      "total_tool_calls": 0,
+      "successful_tool_calls": 0,
+      "hallucinated_tool_calls": 0,
+      "tool_calling_accuracy": 1.0,
+      "circuit_breaker_triggered": false,
+      "circuit_breaker_reason": null,
+      "total_input_tokens": 2950,
+      "total_output_tokens": 590,
+      "total_cost_usd": 0.01649,
+      "scenario_name": "Self-Correction Loop (2-pass)"
+    },
+    {
+      "trace_id": "trace_469f875421c1",
+      "trajectory_steps": [
+        "triage_error",
+        "fetch_context",
+        "generate_fix",
+        "validate_fix",
+        "generate_fix",
+        "validate_fix",
+        "generate_fix",
+        "validate_fix",
+        "escalate_to_human"
+      ],
+      "step_count": 9,
+      "is_optimal_trajectory": false,
+      "trajectory_consistency_score": 0.0,
+      "total_tool_calls": 0,
+      "successful_tool_calls": 0,
+      "hallucinated_tool_calls": 0,
+      "tool_calling_accuracy": 1.0,
+      "circuit_breaker_triggered": true,
+      "circuit_breaker_reason": "Maximum remediation attempts exceeded.",
+      "total_input_tokens": 3250,
+      "total_output_tokens": 660,
+      "total_cost_usd": 0.01844,
+      "scenario_name": "Anti-Loop Circuit Breaker (Max Attempts)"
+    },
+    {
+      "trace_id": "trace_53941660e434",
+      "trajectory_steps": [
+        "triage_error",
+        "fetch_context",
+        "generate_fix",
+        "validate_fix",
+        "generate_fix",
+        "validate_fix",
+        "escalate_to_human"
+      ],
+      "step_count": 7,
+      "is_optimal_trajectory": false,
+      "trajectory_consistency_score": 0.0,
+      "total_tool_calls": 0,
+      "successful_tool_calls": 0,
+      "hallucinated_tool_calls": 0,
+      "tool_calling_accuracy": 1.0,
+      "circuit_breaker_triggered": true,
+      "circuit_breaker_reason": "Maximum remediation attempts exceeded.",
+      "total_input_tokens": 2250,
+      "total_output_tokens": 460,
+      "total_cost_usd": 0.01244,
+      "scenario_name": "Anti-Loop Circuit Breaker (Duplicate Patch)"
+    }
+  ]
+}

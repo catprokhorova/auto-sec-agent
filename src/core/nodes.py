@@ -39,16 +39,26 @@ class AgentWorkflowNodes:
         mcp_gateway: MCPGateway | None = None,
         pruner: TokenPruner | None = None,
         settings: Settings | None = None,
+        tracer: Any = None,
     ):
         self.settings = settings or get_settings()
         self.bedrock = bedrock_client or BedrockClient(settings=self.settings)
         self.gateway = mcp_gateway or MCPGateway()
+        self.tracer = tracer
+        if self.tracer:
+            self.gateway.set_tracer(self.tracer)
         self.pruner = pruner or TokenPruner(
             max_lines=self.settings.token_pruning_max_lines
         )
 
+    def _sync_gateway_trace(self, state: AgentState) -> None:
+        """Sync active trace ID to gateway for telemetry."""
+        if hasattr(self.gateway, "current_trace_id"):
+            self.gateway.current_trace_id = state.trace_id
+
     async def triage_error_node(self, state: AgentState) -> dict[str, Any]:
         """Triage CI error/vulnerability log, extract stack traces, and identify culprit file."""
+        self._sync_gateway_trace(state)
         logger.info("Executing triage_error_node (loop: %d)", state.loop_counter)
 
         # 1. Context Pruning: Extract critical stack traces and CVE info
@@ -80,6 +90,17 @@ class AgentWorkflowNodes:
             system_prompt=system_prompt,
             temperature=0.0,
         )
+
+        if self.tracer and state.trace_id:
+            try:
+                self.tracer.record_token_usage(
+                    trace_id=state.trace_id,
+                    model=llm_response.model,
+                    input_tokens=llm_response.input_tokens,
+                    output_tokens=llm_response.output_tokens,
+                )
+            except Exception as tr_err:
+                logger.debug("Failed recording triage tokens: %s", tr_err)
 
         target_file = state.target_file_path
         line_num = state.line_number
@@ -132,6 +153,7 @@ class AgentWorkflowNodes:
 
     async def fetch_context_node(self, state: AgentState) -> dict[str, Any]:
         """Query Knowledge Graph for service impact and Git server for file contents."""
+        self._sync_gateway_trace(state)
         target_file = state.target_file_path or "services/auth/service.py"
         logger.info("Executing fetch_context_node for '%s'", target_file)
 
@@ -201,6 +223,7 @@ class AgentWorkflowNodes:
 
     async def generate_fix_node(self, state: AgentState) -> dict[str, Any]:
         """Synthesize a unified git diff patch addressing the issue and prior test feedback."""
+        self._sync_gateway_trace(state)
         next_loop = state.loop_counter + 1
         logger.info(
             "Executing generate_fix_node (loop iteration: %d/%d)",
@@ -253,6 +276,17 @@ class AgentWorkflowNodes:
             temperature=0.0,
         )
 
+        if self.tracer and state.trace_id:
+            try:
+                self.tracer.record_token_usage(
+                    trace_id=state.trace_id,
+                    model=llm_response.model,
+                    input_tokens=llm_response.input_tokens,
+                    output_tokens=llm_response.output_tokens,
+                )
+            except Exception as tr_err:
+                logger.debug("Failed recording fix tokens: %s", tr_err)
+
         unified_diff = extract_unified_diff(llm_response.content)
 
         updated_messages = list(messages)
@@ -271,6 +305,7 @@ class AgentWorkflowNodes:
 
     async def validate_fix_node(self, state: AgentState) -> dict[str, Any]:
         """Dispatch patch to isolated Docker sandbox and compute patch hash."""
+        self._sync_gateway_trace(state)
         patch = state.proposed_patch or ""
         logger.info(
             "Executing validate_fix_node (validating patch of length %d)", len(patch)
@@ -327,6 +362,7 @@ class AgentWorkflowNodes:
 
     async def create_pr_node(self, state: AgentState) -> dict[str, Any]:
         """Create a dedicated fix branch, apply validated patch, and open a PR/MR."""
+        self._sync_gateway_trace(state)
         logger.info("Executing create_pr_node: Fix successfully validated!")
 
         branch_id = uuid.uuid4().hex[:6]
@@ -393,6 +429,7 @@ class AgentWorkflowNodes:
 
     async def escalate_to_human_node(self, state: AgentState) -> dict[str, Any]:
         """Trigger circuit breaker escalation and compile trajectory log for operators."""
+        self._sync_gateway_trace(state)
         logger.warning(
             "Executing escalate_to_human_node: Circuit breaker tripped! Reason: %s",
             state.escalation_reason,
@@ -411,6 +448,21 @@ class AgentWorkflowNodes:
 
         updated_messages = list(state.messages)
         updated_messages.append({"role": "system", "content": summary_log})
+
+        if self.tracer and state.trace_id:
+            try:
+                self.tracer.log_circuit_breaker(
+                    trace_id=state.trace_id,
+                    reason=reason,
+                    loop_counter=state.loop_counter,
+                    metadata={
+                        "target_file": state.target_file_path,
+                        "vulnerability_type": state.vulnerability_type,
+                        "patch_count": len(state.patch_history),
+                    },
+                )
+            except Exception as tr_err:
+                logger.debug("Failed logging circuit breaker to tracer: %s", tr_err)
 
         return {
             "circuit_breaker_triggered": True,

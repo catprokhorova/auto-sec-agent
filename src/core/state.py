@@ -72,7 +72,11 @@ class AgentState(BaseModel):
         description="Explanatory reason when execution escalates to human operator",
     )
 
-    # 5. Output Artifacts
+    # 5. Output Artifacts & Observability
+    trace_id: str | None = Field(
+        default=None,
+        description="Unique Langfuse / telemetry trace identifier for this workflow run",
+    )
     pr_info: dict[str, Any] | None = Field(
         default=None,
         description="Pull Request or Merge Request details upon successful patch",

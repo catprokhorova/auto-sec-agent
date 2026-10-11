@@ -6,6 +6,7 @@ from typing import Any
 from langgraph.graph import END, START, StateGraph
 from langgraph.graph.state import CompiledStateGraph
 
+from src.clients.langfuse_tracer import LangfuseTracer
 from src.core.edges import route_after_validation
 from src.core.nodes import AgentWorkflowNodes
 from src.core.state import AgentState
@@ -60,8 +61,15 @@ class SecurityAgentOrchestrator:
         self,
         nodes: AgentWorkflowNodes | None = None,
         compiled_graph: CompiledStateGraph | None = None,
+        tracer: LangfuseTracer | None = None,
     ):
-        self.nodes = nodes or AgentWorkflowNodes()
+        self.tracer = tracer or LangfuseTracer()
+        self.nodes = nodes or AgentWorkflowNodes(tracer=self.tracer)
+        if hasattr(self.nodes, "tracer") and self.nodes.tracer is None:
+            self.nodes.tracer = self.tracer
+            if hasattr(self.nodes, "gateway") and self.nodes.gateway:
+                self.nodes.gateway.set_tracer(self.tracer)
+
         self.graph = compiled_graph or build_security_agent_graph(self.nodes)
 
     async def run(
@@ -70,26 +78,55 @@ class SecurityAgentOrchestrator:
         target_file_path: str | None = None,
         vulnerability_type: str | None = None,
         config: dict[str, Any] | None = None,
+        trace_id: str | None = None,
     ) -> AgentState:
         """Execute the security agent workflow asynchronously from error log to PR."""
         logger.info("Starting Autonomous Security Agent run...")
+
+        # 1. Start execution trace in Langfuse / In-memory tracer
+        active_trace_id = self.tracer.start_trace(
+            name="security-agent-run",
+            metadata={
+                "target_file_path": target_file_path,
+                "vulnerability_type": vulnerability_type,
+            },
+            tags=["autonomous-security-agent", "ci-pipeline"],
+            trace_id=trace_id,
+        )
+
         initial_state = AgentState(
             error_log=error_log,
             target_file_path=target_file_path,
             vulnerability_type=vulnerability_type,
+            trace_id=active_trace_id,
         )
 
-        run_config = config or {}
-        # Execute cyclic LangGraph state machine
-        final_state_dict = await self.graph.ainvoke(
-            initial_state.model_dump(), config=run_config
-        )
+        run_config = dict(config or {})
+        cb = self.tracer.get_langchain_callback()
+        if cb:
+            run_config.setdefault("callbacks", []).append(cb)
 
-        final_state = AgentState(**final_state_dict)
+        # 2. Execute cyclic LangGraph state machine step-by-step
+        accumulated_state = initial_state.model_dump()
+        async for step_dict in self.graph.astream(
+            initial_state.model_dump(), config=run_config, stream_mode="updates"
+        ):
+            for node_name, updated_fields in step_dict.items():
+                accumulated_state.update(updated_fields)
+                self.tracer.log_node_execution(
+                    trace_id=active_trace_id,
+                    node_name=node_name,
+                    outputs=updated_fields,
+                )
+
+        self.tracer.flush()
+
+        final_state = AgentState(**accumulated_state)
         logger.info(
-            "Agent run finished. Loops: %d, PR: %s, Circuit Breaker: %s",
+            "Agent run finished. Loops: %d, PR: %s, Circuit Breaker: %s, Trace: %s",
             final_state.loop_counter,
             bool(final_state.pr_info),
             final_state.circuit_breaker_triggered,
+            active_trace_id,
         )
         return final_state

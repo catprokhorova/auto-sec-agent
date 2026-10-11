@@ -1,0 +1,62 @@
+# GitLab CI/CD Pipeline Configuration for Autonomous Security Remediation
+
+stages:
+  - test
+  - security
+  - remediate
+
+variables:
+  AGENT_WEBHOOK_URL: "https://auto-sec.internal.company.com/webhook/ci"
+  PYTHON_VERSION: "3.11"
+
+unit_and_integration_tests:
+  stage: test
+  image: python:3.11-slim
+  script:
+    - pip install -r requirements.txt
+    - pytest tests/ --junitxml=pytest-report.xml
+  artifacts:
+    when: always
+    paths:
+      - pytest-report.xml
+
+sast_vulnerability_scan:
+  stage: security
+  image: python:3.11-slim
+  script:
+    - pip install bandit semgrep
+    - bandit -r src/ -f json -o bandit-report.json || true
+    - semgrep scan --config=auto --json -o semgrep-report.json
+  artifacts:
+    when: on_failure
+    paths:
+      - bandit-report.json
+      - semgrep-report.json
+
+# Autonomous Security Agent Remediation Job
+autonomous_remediation:
+  stage: remediate
+  image: python:3.11-slim
+  rules:
+    - when: on_failure
+  script:
+    - echo "Pipeline failure detected. Dispatching Autonomous CI/CD Security Agent..."
+    - |
+      if [ -f "semgrep-report.json" ]; then
+        LOG_CONTENT=$(cat semgrep-report.json)
+      elif [ -f "bandit-report.json" ]; then
+        LOG_CONTENT=$(cat bandit-report.json)
+      else
+        LOG_CONTENT="Test failure in pipeline $CI_PIPELINE_ID"
+      fi
+
+      curl -X POST "$AGENT_WEBHOOK_URL" \
+        -H "Content-Type: application/json" \
+        -H "X-Gitlab-Token: $WEBHOOK_SECRET" \
+        -d "{
+          \"provider\": \"gitlab\",
+          \"repo\": \"$CI_PROJECT_PATH\",
+          \"branch\": \"$CI_COMMIT_REF_NAME\",
+          \"error_log\": $(echo "$LOG_CONTENT" | jq -Rs .),
+          \"async_execution\": false
+        }"

@@ -118,13 +118,21 @@ class MCPGateway:
         git_service: GitService | None = None,
         sandbox_service: DockerSandboxService | None = None,
         knowledge_service: KnowledgeGraphService | None = None,
+        tracer: Any = None,
     ):
         self.git_service = git_service or GitService()
         self.sandbox_service = sandbox_service or DockerSandboxService()
         self.knowledge_service = knowledge_service or KnowledgeGraphService()
+        self.tracer = tracer
+        self.current_trace_id: str | None = None
+        self.execution_history: list[ToolExecutionResult] = []
 
         self._tools: dict[str, ToolDefinition] = {}
         self._register_default_tools()
+
+    def set_tracer(self, tracer: Any) -> None:
+        """Assign or update active telemetry tracer."""
+        self.tracer = tracer
 
     def _register_default_tools(self) -> None:
         """Register default tools for Git, Sandbox, and Knowledge Graph."""
@@ -240,13 +248,17 @@ class MCPGateway:
         return None
 
     async def execute_tool(
-        self, tool_name: str, arguments: dict[str, Any] | None = None
+        self,
+        tool_name: str,
+        arguments: dict[str, Any] | None = None,
+        trace_id: str | None = None,
     ) -> ToolExecutionResult:
         """Intercept validation/argument hallucinations before execution.
 
         Returns structured guidance to the model upon failure instead of crashing.
         """
         args = arguments or {}
+        active_trace_id = trace_id or self.current_trace_id
 
         # 1. Intercept Tool Name Hallucination
         if tool_name not in self._tools:
@@ -258,7 +270,7 @@ class MCPGateway:
                 + f"Available tools are: [{available}]. Please correct your tool call."
             )
             logger.warning("Tool hallucination detected: %s", tool_name)
-            return ToolExecutionResult(
+            res = ToolExecutionResult(
                 tool_name=tool_name,
                 arguments=args,
                 success=False,
@@ -266,6 +278,8 @@ class MCPGateway:
                 guidance_for_model=guidance,
                 is_hallucination=True,
             )
+            self._record_tool_call(res, trace_id=active_trace_id)
+            return res
 
         tool = self._tools[tool_name]
 
@@ -294,7 +308,7 @@ class MCPGateway:
                 )
 
             logger.warning("Parameter hallucination on '%s': %s", tool_name, err)
-            return ToolExecutionResult(
+            res = ToolExecutionResult(
                 tool_name=tool_name,
                 arguments=args,
                 success=False,
@@ -302,6 +316,8 @@ class MCPGateway:
                 guidance_for_model=guidance,
                 is_hallucination=True,
             )
+            self._record_tool_call(res, trace_id=active_trace_id)
+            return res
 
         # 3. Safe Execution in Try/Except
         try:
@@ -313,7 +329,7 @@ class MCPGateway:
             else:
                 output = handler(**dumped_kwargs)
 
-            return ToolExecutionResult(
+            res = ToolExecutionResult(
                 tool_name=tool_name,
                 arguments=dumped_kwargs,
                 success=True,
@@ -321,13 +337,15 @@ class MCPGateway:
                 guidance_for_model=None,
                 is_hallucination=False,
             )
+            self._record_tool_call(res, trace_id=active_trace_id)
+            return res
         except Exception as exc:
             logger.error("Error executing tool '%s': %s", tool_name, exc, exc_info=True)
             guidance = (
                 f"Error executing '{tool_name}': {type(exc).__name__}: {exc}. "
                 f"Please check your input values and try an alternative approach."
             )
-            return ToolExecutionResult(
+            res = ToolExecutionResult(
                 tool_name=tool_name,
                 arguments=args,
                 success=False,
@@ -335,3 +353,23 @@ class MCPGateway:
                 guidance_for_model=guidance,
                 is_hallucination=False,
             )
+            self._record_tool_call(res, trace_id=active_trace_id)
+            return res
+
+    def _record_tool_call(
+        self, result: ToolExecutionResult, trace_id: str | None = None
+    ) -> None:
+        """Record tool call to internal history and tracer if configured."""
+        self.execution_history.append(result)
+        if self.tracer and trace_id:
+            try:
+                self.tracer.log_tool_call(
+                    trace_id=trace_id,
+                    tool_name=result.tool_name,
+                    arguments=result.arguments,
+                    success=result.success,
+                    is_hallucination=result.is_hallucination,
+                    error_message=result.error_message,
+                )
+            except Exception as exc:
+                logger.debug("Failed to record tool call to tracer: %s", exc)
